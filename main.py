@@ -15,8 +15,10 @@ app = FastAPI()
 
 # Konfigurasi CORS untuk mengizinkan koneksi dari frontend Next.js Anda
 origins = [
-    "http://localhost:3000",  # Alamat default Next.js
+    "http://localhost:3000",              # untuk development lokal
+    "https://cerdas-isyarat.vercel.app",  # untuk frontend production
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
