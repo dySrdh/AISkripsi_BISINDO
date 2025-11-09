@@ -1,94 +1,69 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import numpy as np
 import joblib
 import warnings
 
 # ==============================
-# ⚙️ Konfigurasi Dasar
+# 🧹 Bersihkan warning
 # ==============================
 warnings.filterwarnings("ignore", category=UserWarning)
 
-app = FastAPI(title="BISINDO AI Backend")
+# ==============================
+# 🚀 Inisialisasi FastAPI
+# ==============================
+app = FastAPI(title="AI BISINDO Backend", version="1.0")
 
 # ==============================
-# 🔒 FIX CORS (untuk Vercel & Railway)
+# 🌐 Konfigurasi CORS
 # ==============================
 origins = [
-    "http://localhost:3000",               # Development lokal
-    "https://cerdas-isyarat.vercel.app",   # Frontend production
+    "http://localhost:3000",             # untuk development
+    "https://cerdas-isyarat.vercel.app", # frontend di Vercel
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,         # hanya domain yang diizinkan
+    allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["*"],           # izinkan semua method (GET, POST, OPTIONS, dll)
-    allow_headers=["*"],           # izinkan semua header
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Tambahan explicit handler untuk OPTIONS (fix Railway 502)
-@app.options("/{full_path:path}")
-async def preflight_handler(full_path: str):
-    """Menangani preflight OPTIONS agar tidak 502 di Railway"""
-    response = JSONResponse(content={"message": "CORS preflight OK"})
-    response.headers["Access-Control-Allow-Origin"] = "https://cerdas-isyarat.vercel.app"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
-
-
 # ==============================
-# 🧠 Muat Model Machine Learning
+# 🧠 PRELOAD MODEL SEKALI SAJA
 # ==============================
 try:
-    model_path = "model/rf_bisindo_99.pkl"
-    clf = joblib.load(model_path)
-    print(f"✅ Model berhasil dimuat dari: {model_path}")
+    MODEL_PATH = "model/rf_bisindo_99.pkl"
+    clf = joblib.load(MODEL_PATH)
+    print(f"✅ Model berhasil dimuat dari: {MODEL_PATH}")
 except FileNotFoundError:
-    print(f"❌ FATAL ERROR: File model tidak ditemukan di {model_path}")
-    print("Pastikan folder 'model' dan file '.pkl' sudah ada di dalam 'ai-backend'.")
-    clf = None
-
+    print(f"❌ Model tidak ditemukan di {MODEL_PATH}")
+    raise SystemExit("File model tidak ditemukan — pastikan path benar.")
 
 # ==============================
-# 📦 Struktur Data Input
+# 📦 Struktur Input
 # ==============================
 class LandmarkData(BaseModel):
     landmarks: list[float]
-
 
 # ==============================
 # 🔮 Endpoint Prediksi
 # ==============================
 @app.post("/predict_landmarks")
 async def predict_from_landmarks(data: LandmarkData):
-    if not clf:
-        return {"error": "Model belum dimuat di server"}
-
-    # Validasi input
     if not data.landmarks or len(data.landmarks) != 126:
         return {"prediction": "Tangan Tidak Valid"}
 
     landmarks_np = np.array(data.landmarks).reshape(1, -1)
     prediction = clf.predict(landmarks_np)
-    predicted_label = prediction[0]
-    return {"prediction": predicted_label}
-
+    return {"prediction": prediction[0]}
 
 # ==============================
-# 🌐 Endpoint Utama
+# 🌍 Endpoint Root
 # ==============================
 @app.get("/")
-def read_root():
+def root():
     return {"status": "AI Backend is running 🚀"}
-
-
-# ==============================
-# 🚀 Entry Point (optional jika dijalankan manual)
-# ==============================
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
